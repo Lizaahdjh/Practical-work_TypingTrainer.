@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>900</width>
+    <width>973</width>
     <height>700</height>
    </rect>
   </property>
@@ -54,7 +54,7 @@ QMenu::item:selected {
     <item>
      <widget class="QStackedWidget" name="stackedWidget">
       <property name="currentIndex">
-       <number>1</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="pageStart">
        <property name="styleSheet">
@@ -623,6 +623,40 @@ QMenu::item:selected {
            </spacer>
           </item>
           <item>
+           <widget class="QPushButton" name="btnNextChar">
+            <property name="font">
+             <font>
+              <pointsize>-1</pointsize>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">QPushButton#btnNextChar {
+    background-color: #4a90e2;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: bold;
+    min-width: 150px;
+    min-height: 36px;
+}
+
+QPushButton#btnNextChar:hover {
+    background-color: #357abd;
+}
+
+QPushButton#btnNextChar:pressed {
+    background-color: #2a5f9e;
+}</string>
+            </property>
+            <property name="text">
+             <string>Next Char (test)</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QTextEdit" name="textDisplay">
             <property name="readOnly">
              <bool>true</bool>
@@ -1109,7 +1143,7 @@ QMenu::item:selected {
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>900</width>
+     <width>973</width>
      <height>33</height>
     </rect>
    </property>
