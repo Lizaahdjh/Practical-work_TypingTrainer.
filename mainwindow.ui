@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>973</width>
-    <height>700</height>
+    <height>701</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -54,7 +54,7 @@ QMenu::item:selected {
     <item>
      <widget class="QStackedWidget" name="stackedWidget">
       <property name="currentIndex">
-       <number>2</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="pageStart">
        <property name="styleSheet">
@@ -163,37 +163,43 @@ QMenu::item:selected {
            </spacer>
           </item>
           <item>
-           <widget class="QComboBox" name="comboLesson">
-            <item>
-             <property name="text">
-              <string>Starter Text</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Numbers and Symbols</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Common Words Part 1</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Common Words Part 2</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Python Code Sample</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Lorem Ipsum</string>
-             </property>
-            </item>
+           <widget class="QComboBox" name="comboLesson"/>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_9">
+            <property name="orientation">
+             <enum>Qt::Orientation::Vertical</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Policy::Preferred</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>10</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnRandom">
+            <property name="styleSheet">
+             <string notr="true">background-color: #27ae60; color: #ffffff; border: none; border-radius: 4px; padding: 8px 16px; font-weight: bold;</string>
+            </property>
+            <property name="text">
+             <string>Random</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnReload">
+            <property name="styleSheet">
+             <string notr="true">background-color: #aaaaff; color: #ffffff; border: none; border-radius: 4px; padding: 8px 16px; font-weight: bold;
+</string>
+            </property>
+            <property name="text">
+             <string>Reload</string>
+            </property>
            </widget>
           </item>
           <item>

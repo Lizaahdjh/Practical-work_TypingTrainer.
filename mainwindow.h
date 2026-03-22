@@ -27,9 +27,13 @@ private slots:
     void on_btnStartTraining_clicked();
     void on_btnRestartTraining_clicked();
     void on_btnReturnToMain_clicked();
+
     void on_actionExit_triggered();
     void on_actionAbout_triggered();
-    void on_comboLesson_currentTextChanged(const QString &text);
+
+    void on_comboLesson_currentIndexChanged(int index);
+    void on_btnRandom_clicked();
+    void on_btnReload_clicked();
 
     void on_btnNextChar_clicked();
 
@@ -43,16 +47,22 @@ private:
 
     QStringList m_lessonTexts;
 
+    QString     m_lessonsDir;
+
     void setupInitialData();
     void updateLessonDescription(const QString &lesson);
+
     void loadLesson(int index);
 
-    QString previousLine()  const;
-    QString currentLine()   const;
-    QString doneFragment()  const;
-    QString remainFragment() const;
+    void scanLessons();
+    void loadLessonFromFile(const QString &path);
+    void chooseRandomLesson();
 
-    void updateTrainingDisplay();
+    QString previousLine()   const;
+    QString currentLine()    const;
+    QString doneFragment()   const;
+    QString remainFragment() const;
+    void    updateTrainingDisplay();
 };
 
 #endif // MAINWINDOW_H

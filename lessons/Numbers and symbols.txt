@@ -1,0 +1,5 @@
+1234567890 + - * / = % & @ # !
+Price: $12.99, discount: 15%.
+Call us: +1 (800) 555-0199.
+Email: support@example.com
+Coordinates: 48.3794 N, 31.1656 E.
