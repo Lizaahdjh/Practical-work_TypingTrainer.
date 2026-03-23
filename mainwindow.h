@@ -5,6 +5,8 @@
 #include <QTimer>
 #include <QString>
 #include <QStringList>
+#include <QElapsedTimer>
+#include <QPushButton>
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -23,6 +25,9 @@ public:
     void highlightKey(const QString &key);
     void markKeyPressed(const QString &key, bool correct);
 
+protected:
+    bool eventFilter(QObject *obj, QEvent *event) override;
+
 private slots:
     void on_btnStartTraining_clicked();
     void on_btnRestartTraining_clicked();
@@ -35,7 +40,10 @@ private slots:
     void on_btnRandom_clicked();
     void on_btnReload_clicked();
 
-    void on_btnNextChar_clicked();
+    void updateTimer();
+    void updateStats();
+
+    void onVirtualKeyPressed();
 
 private:
     Ui::MainWindow *ui;
@@ -45,24 +53,39 @@ private:
     int         m_lineIndex;
     int         m_charIndex;
 
-    QStringList m_lessonTexts;
+    int         m_totalChars;
+    int         m_correctChars;
+    int         m_errorCount;
+    QElapsedTimer m_sessionTimer;
+    QTimer*     m_timer;
+    bool        m_isTrainingActive;
 
+    int         m_lastCharCount;
+    QElapsedTimer m_speedTimer;
+
+    QStringList m_lessonTexts;
     QString     m_lessonsDir;
 
     void setupInitialData();
     void updateLessonDescription(const QString &lesson);
-
     void loadLesson(int index);
-
     void scanLessons();
     void loadLessonFromFile(const QString &path);
     void chooseRandomLesson();
+    void setupVirtualKeyboard();
 
     QString previousLine()   const;
     QString currentLine()    const;
     QString doneFragment()   const;
     QString remainFragment() const;
+    QString getFormattedCurrentLine() const;
     void    updateTrainingDisplay();
+    void    resetTraining();
+    void    checkTrainingComplete();
+    void    processKeyInput(const QString &keyText);
+    void    handleBackspace();
+    void    handleEnter();
+    void    showResults();
 };
 
 #endif // MAINWINDOW_H
