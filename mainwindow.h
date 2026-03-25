@@ -7,6 +7,7 @@
 #include <QStringList>
 #include <QElapsedTimer>
 #include <QPushButton>
+#include <QSettings>
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -45,6 +46,11 @@ private slots:
 
     void onVirtualKeyPressed();
 
+    void onCPMTriggered();
+    void onWPMTriggered();
+    void onLightThemeTriggered();
+    void onDarkThemeTriggered();
+
 private:
     Ui::MainWindow *ui;
 
@@ -66,6 +72,13 @@ private:
     QStringList m_lessonTexts;
     QString     m_lessonsDir;
 
+    QSettings   m_settings;
+    QString     m_speedUnit;
+    QString     m_currentTheme;
+
+    QAction *m_actionCPM;
+    QAction *m_actionWPM;
+
     void setupInitialData();
     void updateLessonDescription(const QString &lesson);
     void loadLesson(int index);
@@ -86,6 +99,20 @@ private:
     void    handleBackspace();
     void    handleEnter();
     void    showResults();
+
+    double calculateCPM() const;
+    double calculateWPM() const;
+    double calculateAccuracy() const;
+    void updateSpeedDisplay();
+
+    void loadSettings();
+    void saveSettings();
+    void updateSpeedUnitMenu();
+
+    void applyTheme(const QString &theme);
+    void createSettingsMenu();
+    QString getLightThemeStyle();
+    QString getDarkThemeStyle();
 };
 
 #endif // MAINWINDOW_H

@@ -12,6 +12,8 @@
 #include <QCoreApplication>
 #include <QKeyEvent>
 #include <QElapsedTimer>
+#include <QMenuBar>
+#include <QAction>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -23,6 +25,11 @@ MainWindow::MainWindow(QWidget *parent)
     , m_errorCount(0)
     , m_isTrainingActive(false)
     , m_lastCharCount(0)
+    , m_settings("TypingTrainer", "TypingTrainer")
+    , m_speedUnit("CPM")
+    , m_currentTheme("light")
+    , m_actionCPM(nullptr)
+    , m_actionWPM(nullptr)
 {
     ui->setupUi(this);
     this->setWindowTitle("TypingTrainer");
@@ -31,17 +38,281 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_timer, &QTimer::timeout, this, &MainWindow::updateTimer);
 
     installEventFilter(this);
-
     this->setFocusPolicy(Qt::StrongFocus);
 
     setupVirtualKeyboard();
+    createSettingsMenu();
 
     setupInitialData();
+    loadSettings();
+
+    applyTheme(m_currentTheme);
+    updateSpeedUnitMenu();
 }
 
 MainWindow::~MainWindow()
 {
+    saveSettings();
     delete ui;
+}
+
+void MainWindow::createSettingsMenu()
+{
+    QMenu *settingsMenu = ui->menubar->findChild<QMenu*>("menuSettings");
+    if (!settingsMenu) return;
+
+    QList<QAction*> existingActions = settingsMenu->actions();
+    for (QAction *action : existingActions) {
+        if (action->objectName() == "actionSpeed_Unit" ||
+            action->objectName() == "actionLight_Theme" ||
+            action->objectName() == "actionDark_Theme") {
+            settingsMenu->removeAction(action);
+        }
+    }
+
+    QMenu *speedMenu = settingsMenu->addMenu("Speed Unit");
+
+    m_actionCPM = speedMenu->addAction("CPM (characters per minute)");
+    m_actionCPM->setCheckable(true);
+    m_actionCPM->setChecked(m_speedUnit == "CPM");
+    connect(m_actionCPM, &QAction::triggered, this, &MainWindow::onCPMTriggered);
+
+    m_actionWPM = speedMenu->addAction("WPM (words per minute, 5 chars = 1 word)");
+    m_actionWPM->setCheckable(true);
+    m_actionWPM->setChecked(m_speedUnit == "WPM");
+    connect(m_actionWPM, &QAction::triggered, this, &MainWindow::onWPMTriggered);
+
+    settingsMenu->addSeparator();
+
+    QAction *lightAction = settingsMenu->addAction("Light Theme");
+    lightAction->setCheckable(true);
+    lightAction->setChecked(m_currentTheme == "light");
+    connect(lightAction, &QAction::triggered, this, &MainWindow::onLightThemeTriggered);
+
+    QAction *darkAction = settingsMenu->addAction("Dark Theme");
+    darkAction->setCheckable(true);
+    darkAction->setChecked(m_currentTheme == "dark");
+    connect(darkAction, &QAction::triggered, this, &MainWindow::onDarkThemeTriggered);
+}
+
+void MainWindow::onCPMTriggered()
+{
+    m_speedUnit = "CPM";
+    updateSpeedUnitMenu();
+    saveSettings();
+    updateSpeedDisplay();
+    statusBar()->showMessage("Speed unit: CPM (characters per minute)", 2000);
+}
+
+void MainWindow::onWPMTriggered()
+{
+    m_speedUnit = "WPM";
+    updateSpeedUnitMenu();
+    saveSettings();
+    updateSpeedDisplay();
+    statusBar()->showMessage("Speed unit: WPM (words per minute, 5 chars = 1 word)", 2000);
+}
+
+void MainWindow::updateSpeedUnitMenu()
+{
+    if (m_actionCPM) m_actionCPM->setChecked(m_speedUnit == "CPM");
+    if (m_actionWPM) m_actionWPM->setChecked(m_speedUnit == "WPM");
+}
+
+double MainWindow::calculateCPM() const
+{
+    qint64 elapsedSeconds = m_sessionTimer.elapsed() / 1000;
+    if (elapsedSeconds == 0 || m_totalChars == 0) return 0.0;
+    return (double)m_totalChars * 60.0 / elapsedSeconds;
+}
+
+double MainWindow::calculateWPM() const
+{
+    int words = m_totalChars / 5;
+    qint64 elapsedSeconds = m_sessionTimer.elapsed() / 1000;
+    if (elapsedSeconds == 0 || words == 0) return 0.0;
+    return (double)words * 60.0 / elapsedSeconds;
+}
+
+double MainWindow::calculateAccuracy() const
+{
+    if (m_totalChars == 0) return 100.0;
+    return (double)m_correctChars * 100.0 / m_totalChars;
+}
+
+void MainWindow::updateSpeedDisplay()
+{
+    if (!m_isTrainingActive) return;
+
+    double speed = (m_speedUnit == "CPM") ? calculateCPM() : calculateWPM();
+    QString speedText = QString("%1 %2").arg((int)speed).arg(m_speedUnit);
+    ui->labelSpeed->setText("Speed: " + speedText);
+}
+
+QString MainWindow::getLightThemeStyle()
+{
+    return R"(
+        QMainWindow { background-color: #f5f5f5; }
+        QMenuBar { background-color: #ffffff; border-bottom: 2px solid #cccccc; }
+        QMenuBar::item { padding: 4px 8px; }
+        QMenuBar::item:selected { background-color: #e0e0e0; }
+        QMenu { background-color: #ffffff; border: 1px solid #cccccc; }
+        QMenu::item:selected { background-color: #e0e0e0; }
+
+        #labelLessonDescription {
+            font-size: 18px; font-weight: bold; color: #2c3e50;
+            background-color: #ecf0f1; padding: 12px;
+            border-left: 5px solid #e74c3c; border-radius: 4px;
+        }
+        QComboBox { background-color: #ffffff; border: 1px solid #cccccc; border-radius: 4px; padding: 6px; }
+        QPushButton { background-color: #4a90e2; color: #ffffff; border: none; border-radius: 4px; padding: 8px 16px; font-weight: bold; }
+        QPushButton:hover { background-color: #357abd; }
+        #btnReturnToMain { background-color: #95a5a6; }
+
+        #labelTime, #labelSpeed, #labelAccuracy {
+            background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 4px;
+            padding: 8px 15px; font-size: 14px; font-weight: bold; color: #333333;
+        }
+        #labelTime { border-left: 3px solid #4a90e2; }
+        #labelSpeed { border-left: 3px solid #27ae60; }
+        #labelAccuracy { border-left: 3px solid #e67e22; }
+
+        #textDisplay {
+            background-color: #ffffff; border: 2px solid #e0e0e0; border-radius: 6px;
+            padding: 15px; font-family: 'Courier New', monospace; font-size: 18px;
+        }
+
+        #virtualKeyboard { background-color: #f0f0f0; border: 1px solid #cccccc; border-radius: 8px; }
+        #virtualKeyboard QPushButton {
+            background-color: #ffffff; border: 1px solid #bdbdbd; border-radius: 4px;
+            padding: 8px; font-size: 14px; font-weight: bold; color: #333333;
+            min-width: 40px; min-height: 40px;
+        }
+        #virtualKeyboard QPushButton:hover { background-color: #e0e0e0; }
+        #btn_space { min-width: 200px; background-color: #e8e8e8; }
+        #btn_enter { background-color: #27ae60; color: white; }
+        #btn_backspace { background-color: #e67e22; color: white; }
+
+        #label { font-size: 30px; font-weight: bold; color: #2c3e50; border-bottom: 4px solid #e74c3c; }
+        #resultTime, #resultSpeed, #resultAccuracy { font-size: 20px; font-weight: bold; color: #4a90e2; }
+
+        QProgressBar { border: 1px solid #cccccc; border-radius: 4px; background-color: #f0f0f0; }
+        QProgressBar::chunk { background-color: #27ae60; border-radius: 3px; }
+    )";
+}
+
+QString MainWindow::getDarkThemeStyle()
+{
+    return R"(
+        QMainWindow { background-color: #1e1e1e; }
+        QMenuBar { background-color: #2d2d2d; border-bottom: 2px solid #3d3d3d; color: #ffffff; }
+        QMenuBar::item { color: #ffffff; }
+        QMenuBar::item:selected { background-color: #3d3d3d; }
+        QMenu { background-color: #2d2d2d; border: 1px solid #3d3d3d; color: #ffffff; }
+        QMenu::item:selected { background-color: #3d3d3d; }
+
+        #labelLessonDescription {
+            font-size: 18px; font-weight: bold; color: #ecf0f1;
+            background-color: #2c3e50; padding: 12px;
+            border-left: 5px solid #e74c3c; border-radius: 4px;
+        }
+        QComboBox { background-color: #2d2d2d; border: 1px solid #3d3d3d; border-radius: 4px; color: #ffffff; }
+        QPushButton { background-color: #4a90e2; color: #ffffff; border: none; border-radius: 4px; padding: 8px 16px; font-weight: bold; }
+        #btnReturnToMain { background-color: #5a6b6c; }
+
+        #labelTime, #labelSpeed, #labelAccuracy {
+            background-color: #2d2d2d; border: 1px solid #3d3d3d; border-radius: 4px;
+            padding: 8px 15px; font-size: 14px; font-weight: bold; color: #ffffff;
+        }
+
+        #textDisplay {
+            background-color: #2d2d2d; border: 2px solid #3d3d3d; border-radius: 6px;
+            padding: 15px; font-family: 'Courier New', monospace; font-size: 18px; color: #ffffff;
+        }
+
+        #virtualKeyboard { background-color: #2d2d2d; border: 1px solid #3d3d3d; border-radius: 8px; }
+        #virtualKeyboard QPushButton {
+            background-color: #3d3d3d; border: 1px solid #4d4d4d; border-radius: 4px;
+            padding: 8px; font-size: 14px; font-weight: bold; color: #ffffff;
+            min-width: 40px; min-height: 40px;
+        }
+        #virtualKeyboard QPushButton:hover { background-color: #4d4d4d; }
+        #btn_space { min-width: 200px; background-color: #4d4d4d; }
+
+        #label { font-size: 30px; font-weight: bold; color: #ecf0f1; border-bottom: 4px solid #e74c3c; }
+        #resultTime, #resultSpeed, #resultAccuracy { font-size: 20px; font-weight: bold; color: #4a90e2; }
+
+        QLabel { color: #ffffff; }
+        QProgressBar { border: 1px solid #3d3d3d; border-radius: 4px; background-color: #2d2d2d; color: #ffffff; }
+        QProgressBar::chunk { background-color: #27ae60; border-radius: 3px; }
+    )";
+}
+
+void MainWindow::applyTheme(const QString &theme)
+{
+    if (theme == "dark") {
+        qApp->setStyleSheet(getDarkThemeStyle());
+        m_currentTheme = "dark";
+    } else {
+        qApp->setStyleSheet(getLightThemeStyle());
+        m_currentTheme = "light";
+    }
+
+    QMenu *settingsMenu = ui->menubar->findChild<QMenu*>("menuSettings");
+    if (settingsMenu) {
+        QList<QAction*> actions = settingsMenu->actions();
+        for (QAction *action : actions) {
+            if (action->text() == "Light Theme") action->setChecked(theme == "light");
+            if (action->text() == "Dark Theme") action->setChecked(theme == "dark");
+        }
+    }
+
+    saveSettings();
+}
+
+void MainWindow::onLightThemeTriggered()
+{
+    applyTheme("light");
+    statusBar()->showMessage("Light theme applied", 2000);
+}
+
+void MainWindow::onDarkThemeTriggered()
+{
+    applyTheme("dark");
+    statusBar()->showMessage("Dark theme applied", 2000);
+}
+
+void MainWindow::loadSettings()
+{
+    QString lastLesson = m_settings.value("lastLesson", "").toString();
+    if (!lastLesson.isEmpty() && ui->comboLesson) {
+        for (int i = 0; i < ui->comboLesson->count(); ++i) {
+            if (ui->comboLesson->itemData(i).toString() == lastLesson) {
+                ui->comboLesson->setCurrentIndex(i);
+                break;
+            }
+        }
+    }
+
+    m_speedUnit = m_settings.value("speedUnit", "CPM").toString();
+
+    m_currentTheme = m_settings.value("theme", "light").toString();
+
+    qDebug() << "Settings loaded: speedUnit=" << m_speedUnit << "theme=" << m_currentTheme;
+}
+
+void MainWindow::saveSettings()
+{
+    if (ui->comboLesson && ui->comboLesson->currentIndex() >= 0) {
+        QString currentLesson = ui->comboLesson->currentData().toString();
+        m_settings.setValue("lastLesson", currentLesson);
+    }
+
+    m_settings.setValue("speedUnit", m_speedUnit);
+
+    m_settings.setValue("theme", m_currentTheme);
+
+    qDebug() << "Settings saved: speedUnit=" << m_speedUnit << "theme=" << m_currentTheme;
 }
 
 void MainWindow::setupVirtualKeyboard()
@@ -264,9 +535,7 @@ void MainWindow::scanLessons()
         }
     }
 
-    statusBar()->showMessage(
-        "Found " + QString::number(files.size()) + " lesson(s)."
-        );
+    statusBar()->showMessage("Found " + QString::number(files.size()) + " lesson(s).");
 }
 
 void MainWindow::loadLessonFromFile(const QString &path)
@@ -281,8 +550,7 @@ void MainWindow::loadLessonFromFile(const QString &path)
         qWarning() << "Cannot open:" << path << "-" << file.errorString();
         QMessageBox::warning(this, "File error",
                              "Cannot open lesson file:\n" + path +
-                                 "\n\nReason: " + file.errorString()
-                             );
+                                 "\n\nReason: " + file.errorString());
         return;
     }
 
@@ -308,17 +576,12 @@ void MainWindow::loadLessonFromFile(const QString &path)
         ui->labelLessonDescription->setText(
             fi.baseName() +
             "  |  " + QString::number(m_lines.size()) + " lines" +
-            "  |  " + QString::number(m_fullText.length()) + " chars"
-            );
+            "  |  " + QString::number(m_fullText.length()) + " chars");
     }
 
     qDebug() << "Loaded file:" << fi.baseName()
              << "| lines:" << m_lines.size()
              << "| chars:" << m_fullText.length();
-
-    for (int i = 0; i < qMin(3, m_lines.size()); i++) {
-        qDebug() << "Line" << i << ":" << m_lines[i];
-    }
 }
 
 void MainWindow::chooseRandomLesson()
@@ -339,6 +602,7 @@ void MainWindow::chooseRandomLesson()
 
 void MainWindow::loadLesson(int index)
 {
+    Q_UNUSED(index);
 }
 
 void MainWindow::on_comboLesson_currentIndexChanged(int index)
@@ -350,6 +614,7 @@ void MainWindow::on_comboLesson_currentIndexChanged(int index)
         QString path = data.toString();
         if (!path.isEmpty()) {
             loadLessonFromFile(path);
+            saveSettings();
         }
     }
 }
@@ -357,6 +622,7 @@ void MainWindow::on_comboLesson_currentIndexChanged(int index)
 void MainWindow::on_btnRandom_clicked()
 {
     chooseRandomLesson();
+    saveSettings();
 }
 
 void MainWindow::on_btnReload_clicked()
@@ -434,35 +700,26 @@ void MainWindow::on_btnReturnToMain_clicked()
     ui->stackedWidget->setCurrentWidget(ui->pageStart);
 }
 
-void MainWindow::on_actionExit_triggered()
+void MainWindow::updateTimer()
 {
-    QApplication::quit();
+    if (!m_isTrainingActive) return;
+
+    qint64 elapsed = m_sessionTimer.elapsed() / 1000;
+    int minutes = elapsed / 60;
+    int seconds = elapsed % 60;
+    ui->labelTime->setText(QString("Time: %1:%2").arg(minutes, 2, 10, QChar('0')).arg(seconds, 2, 10, QChar('0')));
+
+    updateSpeedDisplay();
 }
 
-void MainWindow::on_actionAbout_triggered()
+void MainWindow::updateStats()
 {
-    QMessageBox::about(this, "About TypingTrainer",
-                       "TypingTrainer v1.0\n\n"
-                       "Practical Works #6–8\n\n"
-                       "Place .txt lesson files in the 'lessons/' folder\n"
-                       "next to the application executable.\n\n"
-                       "Current lessons:\n"
-                       "- Starter text\n"
-                       "- Common words\n"
-                       "- Lorem Ipsum\n"
-                       "- Numbers and symbols\n"
-                       "- Python code\n\n"
-                       "Features:\n"
-                       "- Keyboard input with visual feedback\n"
-                       "- Virtual keyboard highlighting\n"
-                       "- Speed and accuracy tracking\n"
-                       "- Backspace and Enter support");
-}
+    if (!m_isTrainingActive) return;
 
-void MainWindow::updateLessonDescription(const QString &lesson)
-{
-    if (ui->labelLessonDescription)
-        ui->labelLessonDescription->setText(lesson);
+    int accuracy = (int)calculateAccuracy();
+    ui->labelAccuracy->setText(QString("Accuracy: %1%").arg(accuracy));
+
+    updateSpeedDisplay();
 }
 
 QString MainWindow::previousLine() const
@@ -545,28 +802,6 @@ void MainWindow::updateTrainingDisplay()
         );
 }
 
-void MainWindow::updateTimer()
-{
-    if (!m_isTrainingActive) return;
-
-    qint64 elapsed = m_sessionTimer.elapsed() / 1000;
-    int minutes = elapsed / 60;
-    int seconds = elapsed % 60;
-    ui->labelTime->setText(QString("Time: %1:%2").arg(minutes, 2, 10, QChar('0')).arg(seconds, 2, 10, QChar('0')));
-}
-
-void MainWindow::updateStats()
-{
-    if (!m_isTrainingActive) return;
-
-    qint64 elapsedSeconds = m_sessionTimer.elapsed() / 1000;
-    int cpm = elapsedSeconds > 0 ? (m_totalChars * 60 / elapsedSeconds) : 0;
-    ui->labelSpeed->setText(QString("Speed: %1 CPM").arg(cpm));
-
-    int accuracy = m_totalChars > 0 ? (m_correctChars * 100 / m_totalChars) : 100;
-    ui->labelAccuracy->setText(QString("Accuracy: %1%").arg(accuracy));
-}
-
 void MainWindow::checkTrainingComplete()
 {
     if (!m_isTrainingActive) return;
@@ -589,18 +824,48 @@ void MainWindow::showResults()
     int seconds = elapsedSeconds % 60;
     QString timeStr = QString("%1:%2").arg(minutes, 2, 10, QChar('0')).arg(seconds, 2, 10, QChar('0'));
 
-    int cpm = elapsedSeconds > 0 ? (m_totalChars * 60 / elapsedSeconds) : 0;
-    int accuracy = m_totalChars > 0 ? (m_correctChars * 100 / m_totalChars) : 100;
+    int cpm = (int)calculateCPM();
+    int accuracy = (int)calculateAccuracy();
+
+    double speed = (m_speedUnit == "CPM") ? cpm : (m_totalChars / 5 * 60 / (elapsedSeconds > 0 ? elapsedSeconds : 1));
+    QString speedText = QString("%1 %2").arg((int)speed).arg(m_speedUnit);
 
     if (ui->resultTime)
         ui->resultTime->setText(timeStr);
     if (ui->resultSpeed)
-        ui->resultSpeed->setText(QString("%1 CPM").arg(cpm));
+        ui->resultSpeed->setText(speedText);
     if (ui->resultAccuracy)
         ui->resultAccuracy->setText(QString("%1%").arg(accuracy));
 
     if (ui->stackedWidget)
         ui->stackedWidget->setCurrentWidget(ui->pageResults);
+}
+
+void MainWindow::on_actionExit_triggered()
+{
+    saveSettings();
+    QApplication::quit();
+}
+
+void MainWindow::on_actionAbout_triggered()
+{
+    QMessageBox::about(this, "About TypingTrainer",
+                       "TypingTrainer v1.0\n\n"
+                       "Practical Works #6–10\n\n"
+                       "Features:\n"
+                       "- Load lessons from .txt files\n"
+                       "- Keyboard input with visual feedback\n"
+                       "- Virtual keyboard highlighting\n"
+                       "- Speed tracking (CPM/WPM)\n"
+                       "- Accuracy tracking\n"
+                       "- Light/Dark themes\n"
+                       "- Settings persistence\n\n"
+                       "Place .txt lesson files in the 'lessons/' folder");
+}
+
+void MainWindow::updateLessonDescription(const QString &lesson)
+{
+    Q_UNUSED(lesson);
 }
 
 void MainWindow::highlightKey(const QString &key)
